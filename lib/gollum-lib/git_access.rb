@@ -1,4 +1,79 @@
 # ~*~ encoding: utf-8 ~*~
+require 'rugged'
+module Grit
+  class InvalidGitRepositoryError < StandardError
+  end
+
+  class NoSuchPathError < StandardError
+  end
+
+  class InvalidObjectType < StandardError
+  end
+
+  module GitRuby
+    class Repository
+
+      class NoSuchShaFound < StandardError
+      end
+      class NoSuchPath < StandardError
+      end
+    end
+  end
+
+  class Repo
+    attr_reader :repo
+    def initialize(path, options = {})
+      @repo = ::Rugged::Repository.new(path)
+    end
+    def commit(ref)
+      # return sha1 from reference
+      ::Rugged::Branch.lookup(@repo, ref)
+    end
+    #def commits
+      # walker = Rugged::Walker.new(@repo)
+      # walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
+      # walker
+    #end
+    # http://rubydoc.info/gems/gitlab-grit/2.6.4/frames
+    def lstree_rec(tree, path, list)
+      tree.each do |e|
+        if e[:type] == :blob
+          # assert_equal 'Mordor/Eye-Of-Sauron.md', map[3].path
+          # assert_equal '/Mordor',                 map[3].dir
+          # assert_equal 'Eye-Of-Sauron.md',        map[3].name
+          # tree.each do |entry|
+          #   if entry[:type] == 'blob'
+          #     items << BlobEntry.new(entry[:sha], entry[:path], entry[:size], entry[:mode].to_i(8))          #   end
+          # end
+          #:dir => path, :name => e[:name]
+          list << {:type => "blob", :sha => e[:oid], :path => path + e[:name],
+            :mode => e[:filemode].to_s}#to_s for compati
+          #puts path + e[:name]
+          #puts e
+        elsif e[:type] == :tree
+          lstree_rec(@repo.lookup(e[:oid]), e[:name] + '/', list)
+        end
+      end
+    end
+    def lstree(treeish = 'master', options = {})
+      obj = @repo.lookup(treeish)
+      list = []
+      lstree_rec(obj.tree, '', list)
+      #p list
+      list
+      #raise Gollum::InvalidGitRepositoryError
+    end
+  end
+end
+
+module Rugged
+  class Branch
+    def id
+      self.tip.oid
+    end
+  end
+end
+
 module Gollum
   # Controls all access to the Git objects from Gollum.  Extend this class to
   # add custom caching for special cases.

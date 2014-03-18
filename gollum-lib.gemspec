@@ -22,7 +22,8 @@ Gem::Specification.new do |s|
   s.rdoc_options = ['--charset=UTF-8']
   s.extra_rdoc_files = %w[README.md LICENSE]
 
-  s.add_dependency('gitlab-grit', '~> 2.6.4')
+  #s.add_dependency('gitlab-grit', '~> 2.6.4')
+  s.add_dependency('rugged', '~> 0.19.0')
   s.add_dependency('rouge', '~> 1.3.3')
   s.add_dependency('nokogiri', '~> 1.6.1')
   s.add_dependency('stringex', '~> 2.5.0')

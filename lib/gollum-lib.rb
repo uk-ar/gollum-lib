@@ -5,7 +5,7 @@ require 'digest/sha1'
 require 'ostruct'
 
 # external
-require 'grit'
+# require 'grit'
 require File.expand_path('../gollum-lib/grit_ext', __FILE__)
 require 'github/markup'
 require 'sanitize'
