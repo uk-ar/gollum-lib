@@ -10,13 +10,6 @@ context "GitAccess" do
     assert @access.commit_map.empty?
     actual   = @access.repo.commits.first
     expected = @access.commit(actual.id)
-    p "id:"
-    p actual.id
-    p actual
-    p "ex:"
-    p @access.commit("1bbc283463be0e1adf922349437be7c484e61e13")
-    p @access.commit("874f597a5659b4c3b153674ea04e406ff393975e")
-    p actual.message
     assert_equal actual.message, expected.message
     assert_equal actual.message, @access.commit_map[actual.id].message
   end
