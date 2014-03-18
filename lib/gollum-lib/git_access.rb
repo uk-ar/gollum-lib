@@ -27,13 +27,17 @@ module Grit
     end
     def commit(ref)
       # return sha1 from reference
-      ::Rugged::Branch.lookup(@repo, ref)
+      begin
+        ::Rugged::Branch.lookup(@repo, ref) || @repo.lookup(ref)
+      rescue Rugged::InvalidError
+      end
     end
-    #def commits
-      # walker = Rugged::Walker.new(@repo)
-      # walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
-      # walker
-    #end
+    def commits
+      walker = Rugged::Walker.new(@repo)
+      #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
+      p walker.push('master')
+      walker.map{ |c| c }#puts c.inspect
+    end
     # http://rubydoc.info/gems/gitlab-grit/2.6.4/frames
     def lstree_rec(tree, path, list)
       tree.each do |e|
@@ -67,11 +71,21 @@ module Grit
 end
 
 module Rugged
+  class Object
+    def id
+      self.oid
+    end
+  end
   class Branch
     def id
       self.tip.oid
     end
   end
+  # class Commit
+  #   def id
+  #     self.tree.oid
+  #   end
+  # end
 end
 
 module Gollum
