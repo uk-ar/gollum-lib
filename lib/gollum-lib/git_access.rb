@@ -19,23 +19,59 @@ module Grit
       end
     end
   end
-
+  class Blob
+    def self.create(repo, atts)
+      #{:id=>"4571349a92aa180e230345e4e44c9be7d9d4f96c", :name=>"Elrond.md", :s
+      obj=repo.rugged_repo.lookup(atts[:id])
+      obj.name = atts[:name]
+      obj.mode = atts[:mode]
+      obj
+    end
+  end
+  class Commit
+    def self.list_from_string(repo, text)
+      text
+    end
+    #todo
+  end
   class Repo
-    attr_reader :repo
+    attr_reader :rugged_repo
+    def log(commit = 'master', path = nil, options = {})
+      walker = Rugged::Walker.new(@rugged_repo)
+      #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
+      walker.push(commit)
+      #p path # My-Precious.md Bilbo-Baggins.md
+      commit = walker.select do |commit|
+        commit.parents.size == 1 &&
+          commit.diff(paths: [path]).size > 0
+      end
+      #walker.map{ |c| c }#puts c.inspect
+    end
+    def git
+      #alias
+      @rugged_repo
+    end
+    def path
+      @rugged_repo.path
+    end
+    def bare
+      @rugged_repo.bare?
+    end
     def initialize(path, options = {})
-      @repo = ::Rugged::Repository.new(path)
+      @rugged_repo = ::Rugged::Repository.new(path)
     end
     def commit(ref)
       # return sha1 from reference
       begin
-        ::Rugged::Branch.lookup(@repo, ref) || @repo.lookup(ref)
-      rescue Rugged::InvalidError
+        ::Rugged::Branch.lookup(@rugged_repo, ref) || @rugged_repo.lookup(ref)
+      rescue Rugged::InvalidError, Rugged::ReferenceError
+        nil
       end
     end
     def commits
-      walker = Rugged::Walker.new(@repo)
+      walker = Rugged::Walker.new(@rugged_repo)
       #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
-      p walker.push('master')
+      walker.push('master')
       walker.map{ |c| c }#puts c.inspect
     end
     # http://rubydoc.info/gems/gitlab-grit/2.6.4/frames
@@ -51,16 +87,16 @@ module Grit
           # end
           #:dir => path, :name => e[:name]
           list << {:type => "blob", :sha => e[:oid], :path => path + e[:name],
-            :mode => e[:filemode].to_s}#to_s for compati
+                   :mode => e[:filemode].to_s(8)}#to_s for compati
           #puts path + e[:name]
           #puts e
         elsif e[:type] == :tree
-          lstree_rec(@repo.lookup(e[:oid]), e[:name] + '/', list)
+          lstree_rec(@rugged_repo.lookup(e[:oid]), e[:name] + '/', list)
         end
       end
     end
     def lstree(treeish = 'master', options = {})
-      obj = @repo.lookup(treeish)
+      obj = @rugged_repo.lookup(treeish)
       list = []
       lstree_rec(obj.tree, '', list)
       #p list
@@ -68,6 +104,7 @@ module Grit
       #raise Gollum::InvalidGitRepositoryError
     end
   end
+  
 end
 
 module Rugged
@@ -76,16 +113,66 @@ module Rugged
       self.oid
     end
   end
+  class Repository
+    # a {:follow=>true, :pretty=>"raw"}
+    # b "master"
+    # c "--"
+    # d "My-Precious.md"
+    def log(options,commit,c,path)
+      walker = Rugged::Walker.new(self)
+      walker.push(commit)
+      #p path # My-Precious.md Bilbo-Baggins.md
+      #commit = walker.select do |commit|
+      p path
+      commits = walker.select do |commit|
+        commit.parents.size == 1 &&
+          commit.diff(paths: [path]).size > 0
+      end
+      # d "My-Precious.md"
+      walker.reset
+      walker.push(commit)
+      commits = walker.collect do |commit|
+        diff = commit.diff(paths: [path])
+        commit.parents.size == 1 &&
+          #commit.diff(paths: [path]).find_similar(:renames)
+          #commit.diff(paths: [path]).size > 0
+          commit.diff(paths: [path]).deltas
+        #.first &&
+        #commit.diff(paths: [path]).deltas.first.renamed?
+        #diff.find_similar!({:dont_ignore_whitespace => true, :renames => tru
+        #true
+        #diff
+      end
+      p commits
+      #walker.reset
+      #commits.map{ |c| puts c }
+      #walker.map{ |c| c }#puts c.inspect
+    end
+  end
   class Branch
     def id
       self.tip.oid
     end
   end
-  # class Commit
-  #   def id
-  #     self.tree.oid
-  #   end
-  # end
+  class Blob
+    attr_accessor :name, :mode
+    def data
+      self.read_raw.data
+    end
+    #copy from grit_ext.rb
+    def is_symlink
+      self.mode == 0120000
+    end
+    
+    def symlink_target(base_path = nil)
+      target = self.data
+      new_path = File.expand_path(File.join('..', target), base_path)
+      
+      if File.file? new_path
+        return new_path
+      end
+    end
+  end
 end
 
 module Gollum
