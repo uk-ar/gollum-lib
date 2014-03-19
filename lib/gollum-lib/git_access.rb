@@ -3,16 +3,12 @@ require 'rugged'
 module Grit
   class InvalidGitRepositoryError < StandardError
   end
-
   class NoSuchPathError < StandardError
   end
-
   class InvalidObjectType < StandardError
   end
-
   module GitRuby
     class Repository
-
       class NoSuchShaFound < StandardError
       end
       class NoSuchPath < StandardError
@@ -32,7 +28,6 @@ module Grit
     def self.list_from_string(repo, text)
       text
     end
-    #todo
   end
   class Repo
     attr_reader :rugged_repo
@@ -78,18 +73,10 @@ module Grit
     def lstree_rec(tree, path, list)
       tree.each do |e|
         if e[:type] == :blob
-          # assert_equal 'Mordor/Eye-Of-Sauron.md', map[3].path
-          # assert_equal '/Mordor',                 map[3].dir
-          # assert_equal 'Eye-Of-Sauron.md',        map[3].name
-          # tree.each do |entry|
-          #   if entry[:type] == 'blob'
           #     items << BlobEntry.new(entry[:sha], entry[:path], entry[:size], entry[:mode].to_i(8))          #   end
           # end
-          #:dir => path, :name => e[:name]
           list << {:type => "blob", :sha => e[:oid], :path => path + e[:name],
                    :mode => e[:filemode].to_s(8)}#to_s for compati
-          #puts path + e[:name]
-          #puts e
         elsif e[:type] == :tree
           lstree_rec(@rugged_repo.lookup(e[:oid]), e[:name] + '/', list)
         end
@@ -99,12 +86,9 @@ module Grit
       obj = @rugged_repo.lookup(treeish)
       list = []
       lstree_rec(obj.tree, '', list)
-      #p list
       list
-      #raise Gollum::InvalidGitRepositoryError
     end
   end
-  
 end
 
 module Rugged
@@ -123,26 +107,18 @@ module Rugged
       walker.push(commit)
       #p path # My-Precious.md Bilbo-Baggins.md
       #commit = walker.select do |commit|
-      p path
-      commits = walker.select do |commit|
+      p path = "/" #"My-<b>Precious.md"
+      commits = walker.map do |commit|
+        #diff = commit.diff(paths: [path])
+        diff = commit.diff(nil)
         commit.parents.size == 1 &&
-          commit.diff(paths: [path]).size > 0
+          diff.size > 0
+        diff.find_similar!(:all => true)#:renames => true, :renames_from_rewrites => true, :copies => true, :copies_from_unmodified => true
+        diff.deltas
       end
       # d "My-Precious.md"
-      walker.reset
-      walker.push(commit)
-      commits = walker.collect do |commit|
-        diff = commit.diff(paths: [path])
-        commit.parents.size == 1 &&
-          #commit.diff(paths: [path]).find_similar(:renames)
-          #commit.diff(paths: [path]).size > 0
-          commit.diff(paths: [path]).deltas
-        #.first &&
-        #commit.diff(paths: [path]).deltas.first.renamed?
-        #diff.find_similar!({:dont_ignore_whitespace => true, :renames => tru
-        #true
-        #diff
-      end
+      # walker.reset
+      # walker.push(commit)
       p commits
       #walker.reset
       #commits.map{ |c| puts c }
