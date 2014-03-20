@@ -40,6 +40,9 @@ module Grit
     def sha
       @rugged_commit.sha
     end
+    def message
+      @rugged_commit.message
+    end
     # Grit::GitRuby::Commit
     def author
       a = @rugged_commit.author
@@ -88,7 +91,8 @@ module Grit
     def commit(ref)
       # return sha1 from reference
       begin
-        ::Rugged::Branch.lookup(@rugged_repo, ref) ||
+        #::Rugged::Branch.lookup(@rugged_repo, ref) ||
+        @rugged_repo.branches[ref] ||
           Commit.new(@rugged_repo.lookup(ref))
       rescue Rugged::InvalidError, Rugged::ReferenceError
         nil
@@ -133,11 +137,11 @@ module Rugged
   end
   class Reference
     def commit
-      self
-    end
-    def sha
       self.target
     end
+    # def sha
+    #   self.target
+    # end
   end
   class Repository
     # def apply_patch(options = {}, head_sha = nil, patch = nil)
@@ -162,9 +166,12 @@ module Rugged
       commits = walker.map do |commit|
         #commit.parents.size == 1 &&
         if commit.diff(paths: [path]).size > 0
-          delta = self.diff(commit.parents.first.oid,commit.oid).
-            find_similar!(:all => true).deltas.first if commit.parents.first
-          path = delta.old_file[:path] if delta && delta.renamed? && options[:follow]
+          if commit.parents.size > 0
+            diff = self.diff(commit.parents.first.oid,commit.oid)
+            diff.find_similar!(:all => true)
+            delta = diff.deltas.first
+            path = delta.old_file[:path] if delta && delta.renamed? && options[:follow]
+          end
           commit
         else
           nil
@@ -178,10 +185,12 @@ module Rugged
   end
   class Branch
     def id
-      self.tip.oid
+      #self.tip.oid
+      self.target_id
     end
     def sha
-      self.tip.oid
+      #self.tip.oid
+      self.target_id
     end
   end
   class Blob
