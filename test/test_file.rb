@@ -15,7 +15,6 @@ context "File" do
   test "existing file" do
     commit = @wiki.repo.commits.first
     file   = @wiki.file("Mordor/todo.txt")
-    p file
     assert_equal "[ ] Write section on Ents\n", file.raw_data
     assert_equal 'todo.txt',         file.name
     assert_equal commit.id,          file.version.id
@@ -49,8 +48,6 @@ context "File with checkout" do
   end
 
   test "on disk file access" do
-    # todo
-    skip nil
     file = @wiki.file("Bilbo-Baggins.md", 'master', true)
     path = file.on_disk_path
 
@@ -59,8 +56,6 @@ context "File with checkout" do
   end
 
   test "symbolic link, with on-disk" do
-    # todo
-    skip nil
     file = @wiki.file("Data-Two.csv", 'master', true)
 
     assert file.on_disk?

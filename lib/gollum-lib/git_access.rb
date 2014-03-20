@@ -31,6 +31,27 @@ module Grit
     def self.list_from_string(repo, text)
       text
     end
+    def initialize(rugged_commit)
+      @rugged_commit = rugged_commit
+    end
+    def id
+      @rugged_commit.id
+    end
+    def sha
+      @rugged_commit.sha
+    end
+    # Grit::GitRuby::Commit
+    def author
+      a = @rugged_commit.author
+      Actor.new(a[:email], a[:name])
+    end
+  end
+  class Actor
+    attr_reader :email, :name
+    def initialize(email, name)
+      @email = email
+      @name = name
+    end
   end
   class Repo
     attr_reader :rugged_repo
@@ -67,7 +88,8 @@ module Grit
     def commit(ref)
       # return sha1 from reference
       begin
-        ::Rugged::Branch.lookup(@rugged_repo, ref) || @rugged_repo.lookup(ref)
+        ::Rugged::Branch.lookup(@rugged_repo, ref) ||
+          Commit.new(@rugged_repo.lookup(ref))
       rescue Rugged::InvalidError, Rugged::ReferenceError
         nil
       end
@@ -76,7 +98,7 @@ module Grit
       walker = Rugged::Walker.new(@rugged_repo)
       #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
       walker.push('master')
-      walker.map{ |c| c }#puts c.inspect
+      walker.map{ |c| Commit.new(c) }#puts c.inspect
     end
     # http://rubydoc.info/gems/gitlab-grit/2.6.4/frames
     def lstree_rec(tree, path, list)
@@ -107,6 +129,14 @@ module Rugged
     end
     def sha
       self.oid
+    end
+  end
+  class Reference
+    def commit
+      self
+    end
+    def sha
+      self.target
     end
   end
   class Repository
@@ -163,11 +193,9 @@ module Rugged
     def is_symlink
       self.mode == 0120000
     end
-    
     def symlink_target(base_path = nil)
       target = self.data
       new_path = File.expand_path(File.join('..', target), base_path)
-      
       if File.file? new_path
         return new_path
       end
