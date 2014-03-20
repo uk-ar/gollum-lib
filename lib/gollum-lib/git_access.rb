@@ -15,6 +15,9 @@ module Grit
       end
     end
   end
+  class Index
+    #todo
+  end
   class Blob
     def self.create(repo, atts)
       #{:id=>"4571349a92aa180e230345e4e44c9be7d9d4f96c", :name=>"Elrond.md", :s
@@ -32,22 +35,28 @@ module Grit
   class Repo
     attr_reader :rugged_repo
     def log(commit = 'master', path = nil, options = {})
-      walker = Rugged::Walker.new(@rugged_repo)
-      #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
-      walker.push(commit)
-      #p path # My-Precious.md Bilbo-Baggins.md
-      commit = walker.select do |commit|
-        commit.parents.size == 1 &&
-          commit.diff(paths: [path]).size > 0
-      end
-      #walker.map{ |c| c }#puts c.inspect
+      # https://github.com/gitlabhq/grit/blob/master/lib/grit/repo.rb#L555
+      @rugged_repo.log({:pretty => "raw"}.merge(options),commit,nil,path)
+    end
+    def head
+      @rugged_repo.head
     end
     def git
       #alias
       @rugged_repo
     end
+    def index
+      #todo
+      nil
+    end
+    def config
+      @rugged_repo.config
+    end
     def path
       @rugged_repo.path
+    end
+    def diff(a, b, *paths)
+      @rugged_repo.diff(a,b)#,paths)
     end
     def bare
       @rugged_repo.bare?
@@ -96,37 +105,52 @@ module Rugged
     def id
       self.oid
     end
+    def sha
+      self.oid
+    end
   end
   class Repository
+    # def apply_patch(options = {}, head_sha = nil, patch = nil)
+    #   "hoge"
+    # end
     # a {:follow=>true, :pretty=>"raw"}
     # b "master"
     # c "--"
     # d "My-Precious.md"
     def log(options,commit,c,path)
+      # p options
+      # p commit
+      # p c
+      # p path
+      # modified
+      # "f25eccd98e9b667f9e22946f3e2f945378b8a72d",
+      # first commit
+      # "5bc1aaec6149e854078f1d0f8b71933bbc6c2e43"
       walker = Rugged::Walker.new(self)
+      walker.sorting(Rugged::SORT_DATE)
       walker.push(commit)
-      #p path # My-Precious.md Bilbo-Baggins.md
-      #commit = walker.select do |commit|
-      p path = "/" #"My-<b>Precious.md"
       commits = walker.map do |commit|
-        #diff = commit.diff(paths: [path])
-        diff = commit.diff(nil)
-        commit.parents.size == 1 &&
-          diff.size > 0
-        diff.find_similar!(:all => true)#:renames => true, :renames_from_rewrites => true, :copies => true, :copies_from_unmodified => true
-        diff.deltas
-      end
-      # d "My-Precious.md"
-      # walker.reset
-      # walker.push(commit)
-      p commits
-      #walker.reset
-      #commits.map{ |c| puts c }
-      #walker.map{ |c| c }#puts c.inspect
+        #commit.parents.size == 1 &&
+        if commit.diff(paths: [path]).size > 0
+          delta = self.diff(commit.parents.first.oid,commit.oid).
+            find_similar!(:all => true).deltas.first if commit.parents.first
+          path = delta.old_file[:path] if delta && delta.renamed? && options[:follow]
+          commit
+        else
+          nil
+        end
+      end.compact
+      #commits.map{ |c| puts c } #c.inspect
+      # http://stackoverflow.com/questions/21302073/access-git-log-data-using-ruby-rugged-gem
+      # https://github.com/libgit2/rugged/blob/development/test/diff_test.rb#L83
+      # https://github.com/libgit2/rugged/blob/development/test/blob_test.rb#L193
     end
   end
   class Branch
     def id
+      self.tip.oid
+    end
+    def sha
       self.tip.oid
     end
   end
