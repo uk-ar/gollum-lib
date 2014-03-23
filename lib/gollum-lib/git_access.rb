@@ -15,8 +15,53 @@ module Grit
       end
     end
   end
+  class Tree
+    attr_reader :rugged_tree
+    def initialize(rugged_tree)
+      @rugged_tree = rugged_tree
+    end
+    def /(file)
+      # if file =~ /\//
+      #   file.split("/").inject(self) { |acc, x| acc/x } rescue nil
+      # else
+      #   self.contents.find { |c| c.name == file }
+      # end
+    end
+  end
   class Index
-    #todo
+    attr_reader :rugged_index, :current_tree, :tree
+    def initialize(repo)
+      @rugged_index = ::Rugged::Index.new
+      @repo = repo
+      @tree = {}
+      @current_tree = nil
+    end
+    def read_tree(treeish)
+      #p @repo.rugged_repo.lookup(tree)
+      tree = @repo.rugged_repo.lookup(treeish)
+      @rugged_index.read_tree(tree)
+      @current_tree = Tree.new(tree)
+    end
+    def add(path, data)
+      oid = @repo.rugged_repo.write(data, :blob)
+      @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
+    end
+    def commit(message, parents = nil, actor = nil, last_tree = nil, head = 'master')
+      options = {}
+      #options[:tree] = # @rugged_index.write_tree(@repo.rugged_repo)
+      options[:tree] = @current_tree.rugged_tree.oid
+      # p message, parents , actor, last_tree
+      options[:author] = { :email => actor.email , :name => actor.name, :time => Time.now }
+      options[:committer] = { :email => actor.email , :name => actor.name, :time => Time.now }
+      options[:message] = message || ''
+      #options[:message] = "hoge"
+      # todo
+      options[:parents] = @repo.rugged_repo.empty? ? [] :
+        [ @repo.rugged_repo.head.target ].compact
+      options[:update_ref] = 'HEAD'
+      #p options
+      Rugged::Commit.create(@repo.rugged_repo, options)
+    end
   end
   class Blob
     def self.create(repo, atts)
@@ -46,32 +91,68 @@ module Grit
     # Grit::GitRuby::Commit
     def author
       a = @rugged_commit.author
-      Actor.new(a[:email], a[:name])
+      Actor.new(a[:name], a[:email])
     end
   end
   class Actor
     attr_reader :email, :name
-    def initialize(email, name)
+    def initialize(name, email)
       @email = email
       @name = name
     end
   end
-  class Repo
+  class Git
     attr_reader :rugged_repo
+    def initialize(repo)
+      @rugged_repo = repo
+    end
+    # def apply_patch(options = {}, head_sha = nil, patch = nil)
+    #   # todo
+    # end
+    def log(options,commit,c,path)
+      walker = Rugged::Walker.new(@rugged_repo)
+      walker.sorting(Rugged::SORT_DATE)
+      walker.push(commit)
+      commits = walker.map do |commit|
+        #commit.parents.size == 1 &&
+        if commit.diff(paths: [path]).size > 0
+          if commit.parents.size > 0
+            diff = @rugged_repo.diff(commit.parents.first.oid,commit.oid)
+            diff.find_similar!(:all => true)
+            delta = diff.deltas.first
+            path = delta.old_file[:path] if delta && delta.renamed? && options[:follow]
+          end
+          commit
+        else
+          nil
+        end
+      end.compact
+      #commits.map{ |c| puts c } #c.inspect
+      # http://stackoverflow.com/questions/21302073/access-git-log-data-using-ruby-rugged-gem
+      # https://github.com/libgit2/rugged/blob/development/test/diff_test.rb#L83
+      # https://github.com/libgit2/rugged/blob/development/test/blob_test.rb#L193
+    end
+    # @wiki.repo.git.checkout({}, 'HEAD', '--', path)
+    def checkout(options,commit,c,path)
+      options[:paths] = [path]
+      require "tmpdir"
+      @rugged_repo.workdir = tmp if @rugged_repo.bare?
+      @rugged_repo.checkout(commit, options)
+    end
+  end
+  class Repo
+    attr_reader :rugged_repo, :git
     def log(commit = 'master', path = nil, options = {})
       # https://github.com/gitlabhq/grit/blob/master/lib/grit/repo.rb#L555
-      @rugged_repo.log({:pretty => "raw"}.merge(options),commit,nil,path)
+      self.git.log({:pretty => "raw"}.merge(options),commit,nil,path)
     end
     def head
       @rugged_repo.head
     end
-    def git
-      #alias
-      @rugged_repo
-    end
     def index
       #todo
-      nil
+      Index.new(self)
+      #nil
     end
     def config
       @rugged_repo.config
@@ -87,6 +168,7 @@ module Grit
     end
     def initialize(path, options = {})
       @rugged_repo = ::Rugged::Repository.new(path)
+      @git = Git.new(rugged_repo)
     end
     def commit(ref)
       # return sha1 from reference
@@ -144,44 +226,6 @@ module Rugged
     # end
   end
   class Repository
-    # def apply_patch(options = {}, head_sha = nil, patch = nil)
-    #   "hoge"
-    # end
-    # a {:follow=>true, :pretty=>"raw"}
-    # b "master"
-    # c "--"
-    # d "My-Precious.md"
-    def log(options,commit,c,path)
-      # p options
-      # p commit
-      # p c
-      # p path
-      # modified
-      # "f25eccd98e9b667f9e22946f3e2f945378b8a72d",
-      # first commit
-      # "5bc1aaec6149e854078f1d0f8b71933bbc6c2e43"
-      walker = Rugged::Walker.new(self)
-      walker.sorting(Rugged::SORT_DATE)
-      walker.push(commit)
-      commits = walker.map do |commit|
-        #commit.parents.size == 1 &&
-        if commit.diff(paths: [path]).size > 0
-          if commit.parents.size > 0
-            diff = self.diff(commit.parents.first.oid,commit.oid)
-            diff.find_similar!(:all => true)
-            delta = diff.deltas.first
-            path = delta.old_file[:path] if delta && delta.renamed? && options[:follow]
-          end
-          commit
-        else
-          nil
-        end
-      end.compact
-      #commits.map{ |c| puts c } #c.inspect
-      # http://stackoverflow.com/questions/21302073/access-git-log-data-using-ruby-rugged-gem
-      # https://github.com/libgit2/rugged/blob/development/test/diff_test.rb#L83
-      # https://github.com/libgit2/rugged/blob/development/test/blob_test.rb#L193
-    end
   end
   class Branch
     def id
@@ -191,6 +235,9 @@ module Rugged
     def sha
       #self.tip.oid
       self.target_id
+    end
+    def tree
+      self.target.tree
     end
   end
   class Blob
