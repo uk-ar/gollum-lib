@@ -48,9 +48,14 @@ module Grit
       @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
     end
     def commit(message, parents = nil, actor = nil, last_tree = nil, head = 'master')
+      # index = wiki.repo.index
+      # index.read_tree 'master'
+      # index.add('Foobar/Elrond.md', 'Baz')
+      # index.commit 'Add Foobar/Elrond.', [wiki.repo.commits.last], Grit::Actor.new('Tom Preston-Werner', 'tom@github.com')
+
       options = {}
       #options[:tree] = # @rugged_index.write_tree(@repo.rugged_repo)
-      options[:tree] = @current_tree.rugged_tree.oid
+      options[:tree] = @rugged_index.write_tree(@repo.rugged_repo) # @current_tree.rugged_tree.oid
       # p message, parents , actor, last_tree
       options[:author] = { :email => actor.email , :name => actor.name, :time => Time.now }
       options[:committer] = { :email => actor.email , :name => actor.name, :time => Time.now }
@@ -197,12 +202,16 @@ module Grit
       @rugged_repo = ::Rugged::Repository.new(path)
       @git = Git.new(rugged_repo, path)
     end
+    def self.init_bare(path, git_options = {}, repo_options = {})
+      ::Rugged::Repository.init_at(path, :bare)
+      self.new(path, repo_options)
+    end
     def self.init(path, git_options = {}, repo_options = {})
       #git_options = {:base => false}.merge(git_options)
-      p git_options
+      #p git_options
       # todo bare?
       #::Rugged::Repository.init_at('.', :bare)
-      ::Rugged::Repository.init_at('.', false)
+      ::Rugged::Repository.init_at(path, false)
       self.new(path, repo_options)
     end
     def commit(ref)
