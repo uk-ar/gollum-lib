@@ -38,7 +38,8 @@ module Grit
     end
     def read_tree(treeish)
       #p @repo.rugged_repo.lookup(tree)
-      tree = @repo.rugged_repo.lookup(treeish)
+      #p treeish # master
+      tree = @repo.commit(treeish).tree
       @rugged_index.read_tree(tree)
       @current_tree = Tree.new(tree)
     end
@@ -183,8 +184,10 @@ module Grit
       @rugged_repo.path
     end
     def diff(a, b, *paths)
-      @rugged_repo.diff(a,b).patches.map{|patches| Diff.new(patches)}
+      @rugged_repo.diff(a,b).find_similar!(:all => true).
+        patches.map{|patches| Diff.new(patches)}.reverse
       #.map{ |patch| patch.to_s }
+      #deltas
       #,paths)
     end
     def bare

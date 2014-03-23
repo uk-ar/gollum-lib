@@ -840,8 +840,6 @@ module Gollum
         path = (page.respond_to?(:path) ? page.path : page.to_s)
         return repo.diff(sha2, sha1, path).first.diff
       end
-      p "diff"
-      p repo.diff(sha2, sha1)
       repo.diff(sha2, sha1).map{|d| d.diff}.join("\n")
     end
 
