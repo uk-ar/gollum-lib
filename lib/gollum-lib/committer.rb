@@ -42,7 +42,6 @@ module Gollum
         if tree   = options[:tree]
           idx.read_tree(tree)
         elsif parent = parents.first
-          #p "index", @wiki.repo.index, parent.tree.id, parent.tree
           idx.read_tree(parent.tree.id)
         end
         idx
@@ -97,7 +96,6 @@ module Gollum
 
       fullpath = ::File.join(*[@wiki.page_file_dir, dir, path].compact)
       fullpath = fullpath[1..-1] if fullpath =~ /^\//
-      #p index
       if index.current_tree && tree = index.current_tree / (@wiki.page_file_dir || '/')
         tree = tree / dir unless tree.nil?
       end
@@ -155,7 +153,6 @@ module Gollum
         path = path.force_encoding('ascii-8bit') if path.respond_to?(:force_encoding)
 
         Dir.chdir(::File.join(@wiki.repo.path, '..')) do
-          #p "map", index.tree, path
           if file_path_scheduled_for_deletion?(index.tree, path)
             @wiki.repo.git.rm({'f' => true}, '--', path)
           else
