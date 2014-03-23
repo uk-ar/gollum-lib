@@ -102,20 +102,26 @@ module Grit
     end
   end
   class Git
-    attr_reader :rugged_repo
-    def initialize(repo)
+    attr_reader :rugged_repo, :git_dir
+    def initialize(repo, git_dir)
       @rugged_repo = repo
+      @git_dir    = git_dir
+      @work_tree  = git_dir.gsub(/\/\.git$/,'')
+      @bytes_read = 0
     end
     # def apply_patch(options = {}, head_sha = nil, patch = nil)
     #   # todo
     # end
     def log(options,commit,c,path)
+      #p "op", options, commit, path
+      #options = {:max_count => 500}.merge(options)
       walker = Rugged::Walker.new(@rugged_repo)
       walker.sorting(Rugged::SORT_DATE)
       walker.push(commit)
       commits = walker.map do |commit|
         #commit.parents.size == 1 &&
-        if commit.diff(paths: [path]).size > 0
+        diff_options = {paths: [path]} if path
+        if commit.diff(diff_options).size > 0
           if commit.parents.size > 0
             diff = @rugged_repo.diff(commit.parents.first.oid,commit.oid)
             diff.find_similar!(:all => true)
@@ -127,6 +133,9 @@ module Grit
           nil
         end
       end.compact
+      options = {:max_count => commits.size, :skip => 0}.merge(options)
+      commits.drop(options[:skip]).take(options[:max_count])
+      #options[:max_count]?  : commits
       #commits.map{ |c| puts c } #c.inspect
       # http://stackoverflow.com/questions/21302073/access-git-log-data-using-ruby-rugged-gem
       # https://github.com/libgit2/rugged/blob/development/test/diff_test.rb#L83
@@ -138,6 +147,19 @@ module Grit
       require "tmpdir"
       @rugged_repo.workdir = tmp if @rugged_repo.bare?
       @rugged_repo.checkout(commit, options)
+    end
+    def exist?
+      File.exist?(self.git_dir)
+    end
+  end
+  class Diff
+    attr_reader :rugged_diff
+    def initialize(rugged_diff)
+      @rugged_diff = rugged_diff
+    end
+    def diff
+      # @rugged_diff.inspect
+      @rugged_diff.to_s
     end
   end
   class Repo
@@ -161,14 +183,24 @@ module Grit
       @rugged_repo.path
     end
     def diff(a, b, *paths)
-      @rugged_repo.diff(a,b)#,paths)
+      @rugged_repo.diff(a,b).patches.map{|patches| Diff.new(patches)}
+      #.map{ |patch| patch.to_s }
+      #,paths)
     end
     def bare
       @rugged_repo.bare?
     end
     def initialize(path, options = {})
       @rugged_repo = ::Rugged::Repository.new(path)
-      @git = Git.new(rugged_repo)
+      @git = Git.new(rugged_repo, path)
+    end
+    def self.init(path, git_options = {}, repo_options = {})
+      #git_options = {:base => false}.merge(git_options)
+      p git_options
+      # todo bare?
+      #::Rugged::Repository.init_at('.', :bare)
+      ::Rugged::Repository.init_at('.', false)
+      self.new(path, repo_options)
     end
     def commit(ref)
       # return sha1 from reference

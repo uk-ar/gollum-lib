@@ -95,6 +95,8 @@ context "Wiki" do
     assert_no_match regex, diff
   end
 
+  #skip
+
   test "gets scoped page from specified directory" do
     @path = cloned_testpath('examples/lotr.git')
     begin
