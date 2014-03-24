@@ -21,11 +21,18 @@ module Grit
       @rugged_tree = rugged_tree
     end
     def /(file)
-      # if file =~ /\//
-      #   file.split("/").inject(self) { |acc, x| acc/x } rescue nil
-      # else
-      #   self.contents.find { |c| c.name == file }
-      # end
+      if file =~ /\//
+        file.split("/").inject(self) { |acc, x| acc/x } rescue nil
+      else
+        self.contents.find { |c| c.name == file }
+      end
+    end
+    def blobs
+      # @rugged_tree.each_blob
+      self
+    end
+    def each
+      @rugged_tree.each_blob.map{ |x| Blob.new(x) }.each{ |x| yield x }
     end
   end
   class Index
@@ -39,7 +46,15 @@ module Grit
     def read_tree(treeish)
       #p @repo.rugged_repo.lookup(tree)
       #p treeish # master
-      tree = @repo.commit(treeish).tree
+      tree = @repo.commit(treeish)
+      #p "commit", tree
+      # Rugged refs to Rugged commit
+      tree = @repo.rugged_repo.lookup(tree.target_id) if tree.type == :direct
+      # Rugged commit to Rugged tree
+      tree = tree.tree if tree.type == :commit
+      #p "commit2", tree
+      #tree = tree.rugged_commit
+      #p "tree", tree
       @rugged_index.read_tree(tree)
       @current_tree = Tree.new(tree)
     end
@@ -68,8 +83,18 @@ module Grit
       #p options
       Rugged::Commit.create(@repo.rugged_repo, options)
     end
+    def delete(path)
+      @rugged_index.remove(path)
+    end
   end
   class Blob
+    attr_reader :rugged_blob, :name, :oid, :filemode, :type
+    def initialize(blob)
+      @name = blob[:name]
+      @oid = blob[:oid]
+      @filemode = blob[:filemode]
+      @type = blob[:type]
+    end
     def self.create(repo, atts)
       #{:id=>"4571349a92aa180e230345e4e44c9be7d9d4f96c", :name=>"Elrond.md", :s
       obj=repo.rugged_repo.lookup(atts[:id])
@@ -79,11 +104,13 @@ module Grit
     end
   end
   class Commit
+    attr_reader :rugged_commit,:type
     def self.list_from_string(repo, text)
       text
     end
     def initialize(rugged_commit)
       @rugged_commit = rugged_commit
+      @type = :commit
     end
     def id
       @rugged_commit.id
@@ -93,6 +120,10 @@ module Grit
     end
     def message
       @rugged_commit.message
+    end
+    def tree
+      @rugged_commit.tree if @rugged_commit.type == :commit
+      @rugged_commit if @rugged_commit.type == :tree
     end
     # Grit::GitRuby::Commit
     def author
@@ -215,11 +246,13 @@ module Grit
       self.new(path, repo_options)
     end
     def commit(ref)
-      # return sha1 from reference
+      # return Rugged ref or Grit commit from reference
       begin
         #::Rugged::Branch.lookup(@rugged_repo, ref) ||
-        @rugged_repo.branches[ref] ||
-          Commit.new(@rugged_repo.lookup(ref))
+        commit = @rugged_repo.branches[ref] ||
+                 Commit.new(@rugged_repo.lookup(ref))
+        # p "comm",commit
+        # commit
       rescue Rugged::InvalidError, Rugged::ReferenceError
         nil
       end
@@ -244,6 +277,7 @@ module Grit
       end
     end
     def lstree(treeish = 'master', options = {})
+      #walk is ok?
       obj = @rugged_repo.lookup(treeish)
       list = []
       lstree_rec(obj.tree, '', list)
@@ -298,6 +332,23 @@ module Rugged
       new_path = File.expand_path(File.join('..', target), base_path)
       if File.file? new_path
         return new_path
+      end
+    end
+  end
+  class Tree
+    include Enumerable
+    # http://ref.xaio.jp/ruby/classes/module/alias_method
+    alias_method :orig_each_blob, :each_blob
+    #should return blob?
+    def each_blob(&block)
+      # http://sekai.hateblo.jp/entry/2013/10/02/010712
+      if block_given?
+        #self.each { |e| yield e if e[:type] == :blob }
+        #::Grit::Blob.new(e)
+        orig_each_blob block
+      else
+        #self.to_enum(:each_blob)#orig?
+        self.to_enum(:orig_each_blob)#orig?
       end
     end
   end
