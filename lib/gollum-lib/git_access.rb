@@ -84,7 +84,21 @@ module Grit
       Rugged::Commit.create(@repo.rugged_repo, options)
     end
     def delete(path)
+      # @rugged_index.remove(path)
+      head_sha = @repo.rugged_repo.references['HEAD'].resolve.target_id
+      tree = @repo.rugged_repo.lookup(head_sha).tree
+
+      index = @repo.rugged_repo.index
+      index.read_tree(tree)
       @rugged_index.remove(path)
+
+      index_tree_sha = index.write_tree
+      index_tree = @repo.rugged_repo.lookup(index_tree_sha)
+      @current_tree = Tree.new(index_tree)
+      # p "tree", @tree, @current_tree.rugged_tree
+      # index.read_tree(@current_tree.rugged_tree)
+      # index.remove(path)
+      # sha = index.write_tree
     end
   end
   class Blob
@@ -200,7 +214,7 @@ module Grit
     end
   end
   class Repo
-    attr_reader :rugged_repo, :git
+    attr_reader :rugged_repo, :git, :working_dir
     def log(commit = 'master', path = nil, options = {})
       # https://github.com/gitlabhq/grit/blob/master/lib/grit/repo.rb#L555
       self.git.log({:pretty => "raw"}.merge(options),commit,nil,path)

@@ -99,7 +99,7 @@ module Gollum
       if index.current_tree && tree = index.current_tree / (@wiki.page_file_dir || '/')
         tree = tree / dir unless tree.nil?
       end
-
+      #p tree, index.rugged_index.
       if tree
         downpath = path.downcase.sub(/\.\w+$/, '')
 
@@ -110,7 +110,7 @@ module Gollum
           existing_file_ext = ::File.extname(blob.name).sub(/^\./, '')
 
           new_file_ext = ::File.extname(path).sub(/^\./, '')
-
+          #p existing_file, allow_same_ext, new_file_ext, existing_file_ext
           if downpath == existing_file && !(allow_same_ext && new_file_ext == existing_file_ext)
             raise DuplicatePageError.new(dir, blob.name, path)
           end
