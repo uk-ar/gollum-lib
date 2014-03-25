@@ -17,14 +17,22 @@ module Grit
   end
   class Tree
     attr_reader :rugged_tree
-    def initialize(rugged_tree)
+    def initialize(rugged_tree, rugged_repo)
       @rugged_tree = rugged_tree
+      @rugged_repo = rugged_repo
     end
     def /(file)
       if file =~ /\//
         file.split("/").inject(self) { |acc, x| acc/x } rescue nil
       else
-        self.contents.find { |c| c.name == file }
+        obj = @rugged_tree.path(file)
+        Tree.new(@rugged_repo.lookup(obj[:oid]), @rugged_repo) if
+          obj[:type] == :tree
+      #   # @rugged_tree.walk(:postorder) { |root, entry| }
+      #   #puts "#{root}#{entry[:name]} [#{entry[:oid]}]" }
+      #   #self.contents.find { |c| c.name == file }
+      #   obj = @rugged_tree.select { |c| c[:name] == file }.first
+      #   hoge
       end
     end
     def blobs
@@ -39,7 +47,7 @@ module Grit
     attr_reader :rugged_index, :current_tree, :tree
     def initialize(repo)
       @rugged_index = ::Rugged::Index.new
-      @repo = repo
+      @repo = repo #Grit
       @tree = {}
       @current_tree = nil
     end
@@ -56,7 +64,7 @@ module Grit
       #tree = tree.rugged_commit
       #p "tree", tree
       @rugged_index.read_tree(tree)
-      @current_tree = Tree.new(tree)
+      @current_tree = Tree.new(tree, @repo.rugged_repo)
     end
     def add(path, data)
       oid = @repo.rugged_repo.write(data, :blob)
@@ -72,8 +80,8 @@ module Grit
       #options[:tree] = # @rugged_index.write_tree(@repo.rugged_repo)
       options[:tree] = @rugged_index.write_tree(@repo.rugged_repo) # @current_tree.rugged_tree.oid
       # p message, parents , actor, last_tree
-      options[:author] = { :email => actor.email , :name => actor.name, :time => Time.now }
-      options[:committer] = { :email => actor.email , :name => actor.name, :time => Time.now }
+      options[:author] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
+      options[:committer] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
       options[:message] = message || ''
       #options[:message] = "hoge"
       # todo
@@ -94,11 +102,28 @@ module Grit
 
       index_tree_sha = index.write_tree
       index_tree = @repo.rugged_repo.lookup(index_tree_sha)
-      @current_tree = Tree.new(index_tree)
+      @current_tree = Tree.new(index_tree, @repo.rugged_repo)
+      # @tree[path] = false
+      add_grit(path, false)
       # p "tree", @tree, @current_tree.rugged_tree
       # index.read_tree(@current_tree.rugged_tree)
       # index.remove(path)
       # sha = index.write_tree
+    end
+    # copy from grit
+    def add_grit(path, data)
+      path = path.split('/')
+      filename = path.pop
+
+      current = @tree
+
+      path.each do |dir|
+        current[dir] ||= {}
+        node = current[dir]
+        current = node
+      end
+
+      current[filename] = data
     end
   end
   class Blob
@@ -201,6 +226,9 @@ module Grit
     end
     def exist?
       File.exist?(self.git_dir)
+    end
+    def rm(a, b, c)#(options,commit,c,path)
+      # todo
     end
   end
   class Diff
