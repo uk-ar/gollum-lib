@@ -428,8 +428,6 @@ module Gollum
         committer.add(page.path, normalize(data))
       else
         committer.delete(page.path)
-        # p "p", page.path, dir, filename, format, data
-        # p "pp"
         committer.add_to_index(dir, filename, format, data)
       end
 

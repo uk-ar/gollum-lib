@@ -54,7 +54,6 @@ context "GitAccess" do
   test "sets #mode for blob entries" do
     @access.tree '60f12f4254f58801b9ee7db7bca5fa8aeefaa56b'
     file = @access.tree_map['60f12f4254f58801b9ee7db7bca5fa8aeefaa56b'][0]
-    @access.tree_map['60f12f4254f58801b9ee7db7bca5fa8aeefaa56b']
     assert_equal 0100644, file.mode
 
     @access.tree '874f597a5659b4c3b153674ea04e406ff393975e'

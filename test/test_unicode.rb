@@ -58,7 +58,6 @@ context "Unicode Support" do
   end
 
   test "create and read non-latin page with anchor 2" do
-    skip nil
     @wiki.write_page("test", :markdown, "# \"La\" faune d'Édiacara")
 
     page = @wiki.page("test")
@@ -79,7 +78,6 @@ context "Unicode Support" do
   end
 
   test "unicode with existing format rules" do
-    skip nil
     @wiki.write_page("test", :markdown, "# 한글")
     assert_equal @wiki.page("test").path, @wiki.page("test").path
   end
