@@ -90,8 +90,10 @@ module Grit
       options[:message] = message || ''
       #options[:message] = "hoge"
       # todo
-      options[:parents] = @rugged_repo.empty? ? [] :
-        [ @rugged_repo.head.target ].compact
+      #p "h:", head, parents.map{ |p| p.id }, #@rugged_repo.head.target
+      # options[:parents] = @rugged_repo.empty? ? [] :
+      #   [ @rugged_repo.head.target ].compact
+      options[:parents] = @rugged_repo.empty? ? [] : parents.map{ |p| p.id }
       options[:update_ref] = 'HEAD'
       #p options
       Rugged::Commit.create(@rugged_repo, options)
@@ -256,6 +258,9 @@ module Grit
   end
   class Repo
     attr_reader :rugged_repo, :git, :working_dir
+    def update_ref(head, commit_sha)
+      @rugged_repo.references.create("refs/heads/" + head,commit_sha)
+    end
     def log(commit = 'master', path = nil, options = {})
       # https://github.com/gitlabhq/grit/blob/master/lib/grit/repo.rb#L555
       self.git.log({:pretty => "raw"}.merge(options),commit,nil,path)
@@ -316,6 +321,7 @@ module Grit
       walker = Rugged::Walker.new(@rugged_repo)
       #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
       walker.push('master')
+      #walker.push(@repo.ref)
       walker.map{ |c| Commit.new(c) }#puts c.inspect
     end
     # http://rubydoc.info/gems/gitlab-grit/2.6.4/frames
