@@ -44,30 +44,35 @@ module Grit
     end
   end
   class Index
-    attr_reader :rugged_index, :current_tree, :tree
+    attr_reader :rugged_index, :current_tree, :tree, :rugged_repo, :repo
     def initialize(repo)
       @rugged_index = ::Rugged::Index.new
       @repo = repo #Grit
+      @rugged_repo = repo.rugged_repo
+      # if repo.kind_of?(Grit::Repo)
+      # else
+      #   @rugged_repo = repo
+      # end
       @tree = {}
       @current_tree = nil
     end
     def read_tree(treeish)
-      #p @repo.rugged_repo.lookup(tree)
+      #p @rugged_repo.lookup(tree)
       #p treeish # master
       tree = @repo.commit(treeish)
       #p "commit", tree
       # Rugged refs to Rugged commit
-      tree = @repo.rugged_repo.lookup(tree.target_id) if tree.type == :direct
+      tree = @rugged_repo.lookup(tree.target_id) if tree.type == :direct
       # Rugged commit to Rugged tree
       tree = tree.tree if tree.type == :commit
       #p "commit2", tree
       #tree = tree.rugged_commit
       #p "tree", tree
       @rugged_index.read_tree(tree)
-      @current_tree = Tree.new(tree, @repo.rugged_repo)
+      @current_tree = Tree.new(tree, @rugged_repo)
     end
     def add(path, data)
-      oid = @repo.rugged_repo.write(data, :blob)
+      oid = @rugged_repo.write(data, :blob)
       @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
     end
     def commit(message, parents = nil, actor = nil, last_tree = nil, head = 'master')
@@ -77,32 +82,32 @@ module Grit
       # index.commit 'Add Foobar/Elrond.', [wiki.repo.commits.last], Grit::Actor.new('Tom Preston-Werner', 'tom@github.com')
 
       options = {}
-      #options[:tree] = # @rugged_index.write_tree(@repo.rugged_repo)
-      options[:tree] = @rugged_index.write_tree(@repo.rugged_repo) # @current_tree.rugged_tree.oid
+      #options[:tree] = # @rugged_index.write_tree(@rugged_repo)
+      options[:tree] = @rugged_index.write_tree(@rugged_repo) # @current_tree.rugged_tree.oid
       # p message, parents , actor, last_tree
       options[:author] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
       options[:committer] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
       options[:message] = message || ''
       #options[:message] = "hoge"
       # todo
-      options[:parents] = @repo.rugged_repo.empty? ? [] :
-        [ @repo.rugged_repo.head.target ].compact
+      options[:parents] = @rugged_repo.empty? ? [] :
+        [ @rugged_repo.head.target ].compact
       options[:update_ref] = 'HEAD'
       #p options
-      Rugged::Commit.create(@repo.rugged_repo, options)
+      Rugged::Commit.create(@rugged_repo, options)
     end
     def delete(path)
       # @rugged_index.remove(path)
-      head_sha = @repo.rugged_repo.references['HEAD'].resolve.target_id
-      tree = @repo.rugged_repo.lookup(head_sha).tree
+      head_sha = @rugged_repo.references['HEAD'].resolve.target_id
+      tree = @rugged_repo.lookup(head_sha).tree
 
-      index = @repo.rugged_repo.index
+      index = @rugged_repo.index
       index.read_tree(tree)
       @rugged_index.remove(path)
 
       index_tree_sha = index.write_tree
-      index_tree = @repo.rugged_repo.lookup(index_tree_sha)
-      @current_tree = Tree.new(index_tree, @repo.rugged_repo)
+      index_tree = @rugged_repo.lookup(index_tree_sha)
+      @current_tree = Tree.new(index_tree, @rugged_repo)
       # @tree[path] = false
       add_grit(path, false)
       # p "tree", @tree, @current_tree.rugged_tree
@@ -178,9 +183,11 @@ module Grit
     end
   end
   class Git
-    attr_reader :rugged_repo, :git_dir
+    attr_reader :rugged_repo, :git_dir, :index, :repo
     def initialize(repo, git_dir)
-      @rugged_repo = repo
+      @repo = repo
+      @rugged_repo = repo.rugged_repo
+      @index = Index.new(repo)
       @git_dir    = git_dir
       @work_tree  = git_dir.gsub(/\/\.git$/,'')
       @bytes_read = 0
@@ -222,13 +229,19 @@ module Grit
       options[:paths] = [path]
       require "tmpdir"
       @rugged_repo.workdir = tmp if @rugged_repo.bare?
-      @rugged_repo.checkout(commit, options)
+      @rugged_repo.checkout(commit, :strategy => :force)
     end
     def exist?
       File.exist?(self.git_dir)
     end
-    def rm(a, b, c)#(options,commit,c,path)
-      # todo
+    # @wiki.repo.git.rm({'f' => true}, '--', path)
+    def rm(options, b, path)#(options,commit,c,path)
+      errors = options['f'] ? Rugged::IndexError : nil
+      begin
+        @index.delete(path)
+      rescue errors
+      end
+      FileUtils.rm(File.expand_path(path, @index.repo.rugged_repo.workdir))
     end
   end
   class Diff
@@ -273,7 +286,7 @@ module Grit
     end
     def initialize(path, options = {})
       @rugged_repo = ::Rugged::Repository.new(path)
-      @git = Git.new(rugged_repo, path)
+      @git = Git.new(self, path)
     end
     def self.init_bare(path, git_options = {}, repo_options = {})
       ::Rugged::Repository.init_at(path, :bare)
