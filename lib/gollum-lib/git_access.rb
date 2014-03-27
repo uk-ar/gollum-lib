@@ -80,10 +80,20 @@ module Grit
       # index.read_tree 'master'
       # index.add('Foobar/Elrond.md', 'Baz')
       # index.commit 'Add Foobar/Elrond.', [wiki.repo.commits.last], Grit::Actor.new('Tom Preston-Werner', 'tom@github.com')
-
       options = {}
-      #options[:tree] = # @rugged_index.write_tree(@rugged_repo)
-      options[:tree] = @rugged_index.write_tree(@rugged_repo) # @current_tree.rugged_tree.oid
+      if @current_tree
+        # p @rugged_repo.references["refs/heads/master"]
+        # p @rugged_repo.branches["master"]
+        head_sha = @rugged_repo.references["refs/heads/" + head].resolve.target_id
+        tree = @rugged_repo.lookup(head_sha).tree
+        @rugged_index.read_tree(tree)
+        options[:tree] = tree.id
+      else
+        options[:tree] = @rugged_index.write_tree(@rugged_repo)
+      end
+      #p options[:tree]
+      #
+        # @rugged_index.write_tree(@rugged_repo) # @current_tree.rugged_tree.oid
       # p message, parents , actor, last_tree
       options[:author] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
       options[:committer] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
@@ -197,6 +207,18 @@ module Grit
     # def apply_patch(options = {}, head_sha = nil, patch = nil)
     #   # todo
     # end
+    # {},"-i","-c","foo","master","--","--","docs"
+    def grep(a,b,c,word,commit,f,g,path)
+      # -i filename:line
+      ret = []#["?:docs/foo:1"]
+      ::Rake::FileList.new(@rugged_repo.workdir+path+"/*").egrep(/#{word}/){|filename, count, line| ret << ":#{Pathname(filename).relative_path_from(Pathname(@rugged_repo.workdir))}:#{count}" }
+      ret.join
+    end
+    def ls_files(a,pattern)
+      Dir.chdir(@rugged_repo.workdir){|path|
+        Dir.glob("**/"+pattern)
+      }.join("\n")
+    end
     def log(options,commit,c,path)
       #p "op", options, commit, path
       #options = {:max_count => 500}.merge(options)
