@@ -21,6 +21,9 @@ module Grit
       @rugged_tree = rugged_tree
       @rugged_repo = rugged_repo
     end
+    def id
+      @rugged_tree.oid
+    end
     def /(file)
       if file =~ /\//
         file.split("/").inject(self) { |acc, x| acc/x } rescue nil
@@ -45,6 +48,9 @@ module Grit
   end
   class Index
     attr_reader :rugged_index, :current_tree, :tree, :rugged_repo, :repo
+    def inspect
+      "#<Grit::Index:#{object_id} {rugged_index: #{rugged_index}, current_tree: #{current_tree}, tree:#{tree}, rugged_repo: #{rugged_repo}, repo: #{repo}}>"
+    end
     def initialize(repo)
       @rugged_index = ::Rugged::Index.new
       @repo = repo #Grit
@@ -74,23 +80,31 @@ module Grit
     def add(path, data)
       oid = @rugged_repo.write(data, :blob)
       @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
+      add_grit(path, data)
     end
     def commit(message, parents = nil, actor = nil, last_tree = nil, head = 'master')
+      # p "pare:", parents.map{ |p| @rugged_repo.lookup(p.id) }
+      # p("target:", [ @rugged_repo.head.target ].compact) unless @rugged_repo.empty?
+      # p "last_tree:", last_tree, head
       # index = wiki.repo.index
       # index.read_tree 'master'
       # index.add('Foobar/Elrond.md', 'Baz')
       # index.commit 'Add Foobar/Elrond.', [wiki.repo.commits.last], Grit::Actor.new('Tom Preston-Werner', 'tom@github.com')
       options = {}
-      if @current_tree
-        # p @rugged_repo.references["refs/heads/master"]
-        # p @rugged_repo.branches["master"]
-        head_sha = @rugged_repo.references["refs/heads/" + head].resolve.target_id
-        tree = @rugged_repo.lookup(head_sha).tree
-        @rugged_index.read_tree(tree)
-        options[:tree] = tree.id
-      else
-        options[:tree] = @rugged_index.write_tree(@rugged_repo)
-      end
+      # if @current_tree
+      #   # p @rugged_repo.references["refs/heads/master"]
+      #   # p @rugged_repo.branches["master"]
+      #   head_sha = @rugged_repo.references["refs/heads/" + head].resolve.target_id
+      #   tree = @rugged_repo.lookup(head_sha).tree
+      #   @rugged_index.read_tree(tree)
+      #   options[:tree] = tree.id
+      # else
+      # @rugged_repo.checkout(@rugged_repo.branches[head]) if @rugged_repo.branches[head]
+      # end
+      options[:tree] = @rugged_index.write_tree(@rugged_repo)
+      # p "pare2:", parents.map{ |p| @rugged_repo.lookup(p.id) }
+      # p("target2:", [ @rugged_repo.head.target ].compact) unless @rugged_repo.empty?
+
       #p options[:tree]
       #
         # @rugged_index.write_tree(@rugged_repo) # @current_tree.rugged_tree.oid
@@ -103,8 +117,9 @@ module Grit
       #p "h:", head, parents.map{ |p| p.id }, #@rugged_repo.head.target
       # options[:parents] = @rugged_repo.empty? ? [] :
       #   [ @rugged_repo.head.target ].compact
-      options[:parents] = @rugged_repo.empty? ? [] : parents.map{ |p| p.id }
-      options[:update_ref] = 'HEAD'
+      options[:parents] = @rugged_repo.empty? ? [] : [ @rugged_repo.head.target ].compact
+      #parents.map{ |p| p.id }
+      options[:update_ref] = "refs/heads/" + head #head #'HEAD'
       #p options
       Rugged::Commit.create(@rugged_repo, options)
     end
@@ -178,13 +193,16 @@ module Grit
       @rugged_commit.message
     end
     def tree
-      @rugged_commit.tree if @rugged_commit.type == :commit
-      @rugged_commit if @rugged_commit.type == :tree
+      return @rugged_commit.tree if @rugged_commit.type == :commit
+      return @rugged_commit if @rugged_commit.type == :tree
     end
     # Grit::GitRuby::Commit
     def author
       a = @rugged_commit.author
       Actor.new(a[:name], a[:email])
+    end
+    def parents
+      @rugged_commit.parents
     end
   end
   class Actor
@@ -281,7 +299,19 @@ module Grit
   class Repo
     attr_reader :rugged_repo, :git, :working_dir
     def update_ref(head, commit_sha)
-      @rugged_repo.references.create("refs/heads/" + head,commit_sha)
+    # when Rugged::Object
+    #   target = sha_or_ref.oid
+    # else
+    #   target = rev_parse_oid(sha_or_ref)
+    # end
+      #b = @rugged_repo.references.create("refs/heads/" + head,commit_sha)
+      #p "t", b.target.oid, commit_sha
+      #p "cl:", Rugged::Commit.lookup(@rugged_repo, commit_sha)
+      ref = @rugged_repo.create_branch(head, Rugged::Commit.lookup(@rugged_repo, commit_sha))
+      #p "ref:", ref.type, ref.target, ref.name, ref.branch?, ref.canonical_name, ref.head?
+      @rugged_repo.branches[head]
+      ref
+      # p "t", b.target.oid, commit_sha
     end
     def log(commit = 'master', path = nil, options = {})
       # https://github.com/gitlabhq/grit/blob/master/lib/grit/repo.rb#L555
@@ -339,10 +369,10 @@ module Grit
         nil
       end
     end
-    def commits
+    def commits(start = 'master', max_count = 10, skip = 0)
       walker = Rugged::Walker.new(@rugged_repo)
       #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
-      walker.push('master')
+      walker.push(start)
       #walker.push(@repo.ref)
       walker.map{ |c| Commit.new(c) }#puts c.inspect
     end
@@ -434,6 +464,7 @@ module Rugged
         self.to_enum(:orig_each_blob)#orig?
       end
     end
+    alias :blobs :each_blob
   end
 end
 
