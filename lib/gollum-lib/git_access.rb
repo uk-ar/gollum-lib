@@ -93,7 +93,7 @@ module Grit
       end
     end
     def add(path, data)
-      # p "add:", path, data
+      p "add:", path#, data
       # obj = @rugged_tree.path(file)
       # obj = @current_tree.path(path)
 
@@ -106,12 +106,27 @@ module Grit
       # index = @rugged_repo.index
       # index.read_tree(tree)
 
-      # dir = File.dirname(path)
-      # unless @rugged_index[dir]
-      #   FileUtils.mkdir_p(@rugged_repo.workdir + dir)
-      # end
-      # File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
-      # @rugged_repo.index.add(path)
+
+      #p "d:",@rugged_repo.index.each{ |e| e }
+      #["G"] # @rugged_index[dir]
+
+      #oid = @rugged_repo.write(data, :blob)
+      # builder = Rugged::Tree::Builder.new
+      rdir = File.dirname(path)
+      require 'tmpdir'
+      Dir.mktmpdir("alternative") do |dir|
+        @rugged_repo.checkout_tree("HEAD", :strategy => :safe_create, :target_directory => dir)
+        #assert File.exist?(File.join(dir, "README"))
+        #assert File.exist?(File.join(dir, "new.txt"))
+        unless @rugged_repo.index[rdir]
+          FileUtils.mkdir_p(@rugged_repo.workdir + rdir)
+        end
+        File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
+        @rugged_repo.index.add(path)
+        p "p:", path
+      end
+      # builder << { :type => :tree, :name => "G/H/" , :oid => nil, :filemode => 0100644 }
+      # builder << { :type => :blob, :name => "README.md", :oid => oid, :filemode => 0100644 }
 
       #p "s:", File.split(path)
       # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
@@ -120,10 +135,11 @@ module Grit
       # @rugged_index.add(path)
 
       oid = @rugged_repo.write(data, :blob)
-      # @rugged_repo.index.add(:path => path, :oid => oid, :mode => 0100644)
-      @rugged_repo.index.add(path)
+      @rugged_repo.index.add(:path => path, :oid => oid, :mode => 0100644)
+      p "d2:",@rugged_repo.index.to_s
+      # @rugged_repo.index.add(:path => "hoge.md", :oid => oid, :mode => 0100644)
+      # @rugged_repo.index.add(path)
 
-      # p "d:", @rugged_index[dir]
       # index_tree_sha = @rugged_index.write_tree(@rugged_repo)
       # index_tree = @rugged_repo.lookup(index_tree_sha)
       # # Grit::Tree for '/' method
@@ -418,7 +434,7 @@ module Grit
       # return Rugged ref or Grit commit from reference
       begin
         #::Rugged::Branch.lookup(@rugged_repo, ref) ||
-        commit = @rugged_repo.branches[ref] ||
+        @rugged_repo.branches[ref] ||
                  Commit.new(@rugged_repo.lookup(ref))
         # p "comm",commit
         # commit
@@ -448,7 +464,8 @@ module Grit
     end
     def lstree(treeish = 'master', options = {})
       #walk is ok?
-      obj = @rugged_repo.lookup(treeish)
+      #obj = @rugged_repo.lookup(treeish)
+      obj = commit(treeish)
       list = []
       lstree_rec(obj.tree, '', list)
       list
