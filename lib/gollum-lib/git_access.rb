@@ -24,13 +24,19 @@ module Grit
     def id
       @rugged_tree.oid
     end
+    def path(path)
+      @rugged_tree.path(path)
+    end
     def /(file)
       if file =~ /\//
         file.split("/").inject(self) { |acc, x| acc/x } rescue nil
       else
-        obj = @rugged_tree.path(file)
-        Tree.new(@rugged_repo.lookup(obj[:oid]), @rugged_repo) if
-          obj[:type] == :tree
+        begin
+          obj = @rugged_tree.path(file)
+          Tree.new(@rugged_repo.lookup(obj[:oid]), @rugged_repo) if
+            obj[:type] == :tree
+        rescue Rugged::TreeError
+        end
       #   # @rugged_tree.walk(:postorder) { |root, entry| }
       #   #puts "#{root}#{entry[:name]} [#{entry[:oid]}]" }
       #   #self.contents.find { |c| c.name == file }
@@ -48,6 +54,7 @@ module Grit
   end
   class Index
     attr_reader :rugged_index, :current_tree, :tree, :rugged_repo, :repo
+    # ref branch name
     def inspect
       "#<Grit::Index:#{object_id} {rugged_index: #{rugged_index}, current_tree: #{current_tree}, tree:#{tree}, rugged_repo: #{rugged_repo}, repo: #{repo}}>"
     end
@@ -77,10 +84,51 @@ module Grit
       @rugged_index.read_tree(tree)
       @current_tree = Tree.new(tree, @rugged_repo)
     end
+    def mkdir_p(path)
+      #https://gist.github.com/uniphil/9570964
+      path_parts = path.split('/')
+      if path_parts.size == 1
+        
+      end
+    end
     def add(path, data)
+      # p "add:", path, data
+      # obj = @rugged_tree.path(file)
+      # obj = @current_tree.path(path)
+      # dir = File.dirname(path)
+
+      # builder = Rugged::Tree::Builder.new
+
+      # head_sha = @rugged_repo.references['HEAD'].resolve.target_id
+      # tree = @rugged_repo.lookup(head_sha).tree
+
+      # index = @rugged_repo.index
+      # index.read_tree(tree)
+
+      # unless @rugged_index[dir]
+      #   FileUtils.mkdir_p(@rugged_repo.workdir + dir)
+      # end
+      # File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
+
+      #p "s:", File.split(path)
+      # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
+      # @rugged_index.reload
+      # index is in-memory
+      # @rugged_index.add(path)
       oid = @rugged_repo.write(data, :blob)
       @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
-      add_grit(path, data)
+      # p "d:", @rugged_index[dir]
+      index_tree_sha = @rugged_index.write_tree(@rugged_repo)
+      index_tree = @rugged_repo.lookup(index_tree_sha)
+      # Grit::Tree for '/' method
+      @current_tree = Tree.new(index_tree, @rugged_repo)
+
+      # p "d2:", @rugged_index[dir]
+      # @current_tree =
+      # @current_tree.path(path)
+      a = add_grit(path, data)
+      #p "a", a
+      a
     end
     def commit(message, parents = nil, actor = nil, last_tree = nil, head = 'master')
       # p "pare:", parents.map{ |p| @rugged_repo.lookup(p.id) }
@@ -102,6 +150,7 @@ module Grit
       # @rugged_repo.checkout(@rugged_repo.branches[head]) if @rugged_repo.branches[head]
       # end
       options[:tree] = @rugged_index.write_tree(@rugged_repo)
+      # @current_tree # @current_tree.id
       # p "pare2:", parents.map{ |p| @rugged_repo.lookup(p.id) }
       # p("target2:", [ @rugged_repo.head.target ].compact) unless @rugged_repo.empty?
 
@@ -134,6 +183,7 @@ module Grit
 
       index_tree_sha = index.write_tree
       index_tree = @rugged_repo.lookup(index_tree_sha)
+      # Grit::Tree for '/' method
       @current_tree = Tree.new(index_tree, @rugged_repo)
       # @tree[path] = false
       add_grit(path, false)
