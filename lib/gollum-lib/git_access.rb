@@ -53,13 +53,13 @@ module Grit
     end
   end
   class Index
-    attr_reader :rugged_index, :current_tree, :tree, :rugged_repo, :repo
+    attr_reader :current_tree, :tree, :rugged_repo, :repo #:rugged_index,
     # ref branch name
     def inspect
       "#<Grit::Index:#{object_id} {rugged_index: #{rugged_index}, current_tree: #{current_tree}, tree:#{tree}, rugged_repo: #{rugged_repo}, repo: #{repo}}>"
     end
     def initialize(repo)
-      @rugged_index = ::Rugged::Index.new
+      # @rugged_index = ::Rugged::Index.new
       @repo = repo #Grit
       @rugged_repo = repo.rugged_repo
       # if repo.kind_of?(Grit::Repo)
@@ -81,21 +81,22 @@ module Grit
       #p "commit2", tree
       #tree = tree.rugged_commit
       #p "tree", tree
-      @rugged_index.read_tree(tree)
+      # @rugged_index.read_tree(tree)
+      @rugged_repo.index.read_tree(tree)
       @current_tree = Tree.new(tree, @rugged_repo)
     end
     def mkdir_p(path)
       #https://gist.github.com/uniphil/9570964
       path_parts = path.split('/')
       if path_parts.size == 1
-        
+
       end
     end
     def add(path, data)
       # p "add:", path, data
       # obj = @rugged_tree.path(file)
       # obj = @current_tree.path(path)
-      # dir = File.dirname(path)
+
 
       # builder = Rugged::Tree::Builder.new
 
@@ -105,25 +106,27 @@ module Grit
       # index = @rugged_repo.index
       # index.read_tree(tree)
 
-      unless @rugged_index[dir]
-        FileUtils.mkdir_p(@rugged_repo.workdir + dir)
-      end
-      File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
+      # dir = File.dirname(path)
+      # unless @rugged_index[dir]
+      #   FileUtils.mkdir_p(@rugged_repo.workdir + dir)
+      # end
+      # File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
+      # @rugged_repo.index.add(path)
 
       #p "s:", File.split(path)
       # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
       # @rugged_index.reload
       # index is in-memory
-      @rugged_index.add(path)
+      # @rugged_index.add(path)
 
-      # oid = @rugged_repo.write(data, :blob)
-      # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
+      oid = @rugged_repo.write(data, :blob)
+      @rugged_repo.index.add(:path => path, :oid => oid, :mode => 0100644)
 
       # p "d:", @rugged_index[dir]
-      index_tree_sha = @rugged_index.write_tree(@rugged_repo)
-      index_tree = @rugged_repo.lookup(index_tree_sha)
-      # Grit::Tree for '/' method
-      @current_tree = Tree.new(index_tree, @rugged_repo)
+      # index_tree_sha = @rugged_index.write_tree(@rugged_repo)
+      # index_tree = @rugged_repo.lookup(index_tree_sha)
+      # # Grit::Tree for '/' method
+      # @current_tree = Tree.new(index_tree, @rugged_repo)
 
       # p "d2:", @rugged_index[dir]
       # @current_tree =
@@ -151,7 +154,8 @@ module Grit
       # else
       # @rugged_repo.checkout(@rugged_repo.branches[head]) if @rugged_repo.branches[head]
       # end
-      options[:tree] = @rugged_index.write_tree(@rugged_repo)
+      # options[:tree] = @rugged_index.write_tree(@rugged_repo)
+      options[:tree] = @rugged_repo.index.write_tree(@rugged_repo)
       # @current_tree # @current_tree.id
       # p "pare2:", parents.map{ |p| @rugged_repo.lookup(p.id) }
       # p("target2:", [ @rugged_repo.head.target ].compact) unless @rugged_repo.empty?
@@ -181,7 +185,7 @@ module Grit
 
       index = @rugged_repo.index
       index.read_tree(tree)
-      @rugged_index.remove(path)
+      @rugged_repo.index.remove(path)
 
       index_tree_sha = index.write_tree
       index_tree = @rugged_repo.lookup(index_tree_sha)
