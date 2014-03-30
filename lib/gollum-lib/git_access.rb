@@ -120,7 +120,8 @@ module Grit
       # @rugged_index.add(path)
 
       oid = @rugged_repo.write(data, :blob)
-      @rugged_repo.index.add(:path => path, :oid => oid, :mode => 0100644)
+      # @rugged_repo.index.add(:path => path, :oid => oid, :mode => 0100644)
+      @rugged_repo.index.add(path)
 
       # p "d:", @rugged_index[dir]
       # index_tree_sha = @rugged_index.write_tree(@rugged_repo)
