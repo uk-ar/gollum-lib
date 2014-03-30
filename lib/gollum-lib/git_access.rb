@@ -105,18 +105,20 @@ module Grit
       # index = @rugged_repo.index
       # index.read_tree(tree)
 
-      # unless @rugged_index[dir]
-      #   FileUtils.mkdir_p(@rugged_repo.workdir + dir)
-      # end
-      # File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
+      unless @rugged_index[dir]
+        FileUtils.mkdir_p(@rugged_repo.workdir + dir)
+      end
+      File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
 
       #p "s:", File.split(path)
       # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
       # @rugged_index.reload
       # index is in-memory
-      # @rugged_index.add(path)
-      oid = @rugged_repo.write(data, :blob)
-      @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
+      @rugged_index.add(path)
+
+      # oid = @rugged_repo.write(data, :blob)
+      # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
+
       # p "d:", @rugged_index[dir]
       index_tree_sha = @rugged_index.write_tree(@rugged_repo)
       index_tree = @rugged_repo.lookup(index_tree_sha)
