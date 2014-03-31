@@ -56,7 +56,7 @@ module Grit
     attr_reader :current_tree, :tree, :rugged_repo, :repo #:rugged_index,
     # ref branch name
     def inspect
-      "#<Grit::Index:#{object_id} {rugged_index: #{rugged_index}, current_tree: #{current_tree}, tree:#{tree}, rugged_repo: #{rugged_repo}, repo: #{repo}}>"
+      "#<Grit::Index:#{object_id} {current_tree: #{current_tree}, tree:#{tree}, rugged_repo: #{rugged_repo}, repo: #{repo}}>"
     end
     def initialize(repo)
       # @rugged_index = ::Rugged::Index.new
@@ -93,40 +93,26 @@ module Grit
       end
     end
     def add(path, data)
-      p "add:", path#, data
-      # obj = @rugged_tree.path(file)
-      # obj = @current_tree.path(path)
-
-
-      # builder = Rugged::Tree::Builder.new
-
-      # head_sha = @rugged_repo.references['HEAD'].resolve.target_id
-      # tree = @rugged_repo.lookup(head_sha).tree
-
+      #p "add:", path#, data
       # index = @rugged_repo.index
       # index.read_tree(tree)
 
-
       #p "d:",@rugged_repo.index.each{ |e| e }
-      #["G"] # @rugged_index[dir]
 
       #oid = @rugged_repo.write(data, :blob)
       # builder = Rugged::Tree::Builder.new
-      rdir = File.dirname(path)
-      require 'tmpdir'
-      Dir.mktmpdir("alternative") do |dir|
-        @rugged_repo.checkout_tree("HEAD", :strategy => :safe_create, :target_directory => dir)
-        #assert File.exist?(File.join(dir, "README"))
-        #assert File.exist?(File.join(dir, "new.txt"))
-        unless @rugged_repo.index[rdir]
-          FileUtils.mkdir_p(@rugged_repo.workdir + rdir)
-        end
-        File.open(@rugged_repo.workdir + path, "w") { |f| f.write data }
-        @rugged_repo.index.add(path)
-        p "p:", path
-      end
-      # builder << { :type => :tree, :name => "G/H/" , :oid => nil, :filemode => 0100644 }
-      # builder << { :type => :blob, :name => "README.md", :oid => oid, :filemode => 0100644 }
+      # dir = File.dirname(path)
+      # require 'tmpdir'
+      # Dir.chdir(@rugged_repo.workdir) do
+      #   dir = File.dirname(path)
+      #   FileUtils.mkdir_p dir
+      #   File.open(path, "w") { |f| f.write data }
+      # end
+      # @rugged_repo.index.add(path)
+      # #p "i:", @rugged_repo.index #.each{ |e| e }
+      # # Dir.mktmpdir("alternative") do |dir|
+      # ##first time
+      # @rugged_repo.index.write
 
       #p "s:", File.split(path)
       # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
@@ -136,18 +122,15 @@ module Grit
 
       oid = @rugged_repo.write(data, :blob)
       @rugged_repo.index.add(:path => path, :oid => oid, :mode => 0100644)
-      p "d2:",@rugged_repo.index.to_s
-      # @rugged_repo.index.add(:path => "hoge.md", :oid => oid, :mode => 0100644)
-      # @rugged_repo.index.add(path)
+      @rugged_repo.index.write
+
+      # p "d2:",@rugged_repo.index.to_s
 
       # index_tree_sha = @rugged_index.write_tree(@rugged_repo)
       # index_tree = @rugged_repo.lookup(index_tree_sha)
       # # Grit::Tree for '/' method
       # @current_tree = Tree.new(index_tree, @rugged_repo)
 
-      # p "d2:", @rugged_index[dir]
-      # @current_tree =
-      # @current_tree.path(path)
       a = add_grit(path, data)
       #p "a", a
       a
@@ -193,7 +176,11 @@ module Grit
       #parents.map{ |p| p.id }
       options[:update_ref] = "refs/heads/" + head #head #'HEAD'
       #p options
-      Rugged::Commit.create(@rugged_repo, options)
+      sha = Rugged::Commit.create(@rugged_repo, options)
+      #p "comm_sha", sha
+      # commit = @rugged_repo.lookup(sha)
+      # commit.tree.walk(:postorder) { |root, entry| p "#{root}#{entry[:name]} [#{entry[:oid]}]" }
+      sha
     end
     def delete(path)
       # @rugged_index.remove(path)
@@ -450,24 +437,27 @@ module Grit
       walker.map{ |c| Commit.new(c) }#puts c.inspect
     end
     # http://rubydoc.info/gems/gitlab-grit/2.6.4/frames
-    def lstree_rec(tree, path, list)
-      tree.each do |e|
-        if e[:type] == :blob
-          #     items << BlobEntry.new(entry[:sha], entry[:path], entry[:size], entry[:mode].to_i(8))          #   end
-          # end
-          list << {:type => "blob", :sha => e[:oid], :path => path + e[:name],
-                   :mode => e[:filemode].to_s(8)}#to_s for compati
-        elsif e[:type] == :tree
-          lstree_rec(@rugged_repo.lookup(e[:oid]), e[:name] + '/', list)
-        end
-      end
-    end
+    # def lstree_rec(tree, path, list)
+    #   tree.each do |e|
+    #     if e[:type] == :blob
+    #       #     items << BlobEntry.new(entry[:sha], entry[:path], entry[:size], entry[:mode].to_i(8))          #   end
+    #       # end
+    #       list << {:type => "blob", :sha => e[:oid], :path => path + e[:name],
+    #                :mode => e[:filemode].to_s(8)}#to_s for compati
+    #     elsif e[:type] == :tree
+    #       lstree_rec(@rugged_repo.lookup(e[:oid]), e[:name] + '/', list)
+    #     end
+    #   end
+    # end
     def lstree(treeish = 'master', options = {})
       #walk is ok?
       #obj = @rugged_repo.lookup(treeish)
       obj = commit(treeish)
       list = []
-      lstree_rec(obj.tree, '', list)
+      obj.tree.walk(:postorder) { |root, e|
+        list << {:type => "blob", :sha => e[:oid], :path => "#{root}#{e[:name]}" , :mode => e[:filemode].to_s(8)}
+      }
+      # lstree_rec(obj.tree, '', list)
       list
     end
   end
