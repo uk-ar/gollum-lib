@@ -236,6 +236,12 @@ module Grit
   end
   class Commit
     attr_reader :rugged_commit,:type
+    def to_s
+      id
+    end
+    def inspect
+      %Q{#<Grit::Commit "#{id}" "#{object_id}">}
+    end
     def self.list_from_string(repo, text)
       text
     end
@@ -454,7 +460,7 @@ module Grit
       #obj = @rugged_repo.lookup(treeish)
       obj = commit(treeish)
       list = []
-      obj.tree.walk(:postorder) { |root, e|
+      obj.tree.walk_blobs(:postorder) { |root, e|
         list << {:type => "blob", :sha => e[:oid], :path => "#{root}#{e[:name]}" , :mode => e[:filemode].to_s(8)}
       }
       # lstree_rec(obj.tree, '', list)
