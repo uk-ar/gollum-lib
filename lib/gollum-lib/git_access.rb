@@ -37,15 +37,10 @@ module Grit
             obj[:type] == :tree
         rescue Rugged::TreeError
         end
-      #   # @rugged_tree.walk(:postorder) { |root, entry| }
-      #   #puts "#{root}#{entry[:name]} [#{entry[:oid]}]" }
-      #   #self.contents.find { |c| c.name == file }
-      #   obj = @rugged_tree.select { |c| c[:name] == file }.first
-      #   hoge
       end
     end
     def blobs
-      # @rugged_tree.each_blob
+      # @rugged_tree.blobs.each
       self
     end
     def each
@@ -59,7 +54,6 @@ module Grit
       "#<Grit::Index:#{object_id} {current_tree: #{current_tree}, tree:#{tree}, rugged_repo: #{rugged_repo}, repo: #{repo}}>"
     end
     def initialize(repo)
-      # @rugged_index = ::Rugged::Index.new
       @repo = repo #Grit
       @rugged_repo = repo.rugged_repo
       # if repo.kind_of?(Grit::Repo)
@@ -70,18 +64,9 @@ module Grit
       @current_tree = nil
     end
     def read_tree(treeish)
-      #p @rugged_repo.lookup(tree)
-      #p treeish # master
       tree = @repo.commit(treeish)
-      #p "commit", tree
-      # Rugged refs to Rugged commit
       tree = @rugged_repo.lookup(tree.target_id) if tree.type == :direct
-      # Rugged commit to Rugged tree
       tree = tree.tree if tree.type == :commit
-      #p "commit2", tree
-      #tree = tree.rugged_commit
-      #p "tree", tree
-      # @rugged_index.read_tree(tree)
       @rugged_repo.index.read_tree(tree)
       @current_tree = Tree.new(tree, @rugged_repo)
     end
@@ -93,94 +78,20 @@ module Grit
       end
     end
     def add(path, data)
-      #p "add:", path#, data
-      # index = @rugged_repo.index
-      # index.read_tree(tree)
-
-      #p "d:",@rugged_repo.index.each{ |e| e }
-
-      #oid = @rugged_repo.write(data, :blob)
-      # builder = Rugged::Tree::Builder.new
-      # dir = File.dirname(path)
-      # require 'tmpdir'
-      # Dir.chdir(@rugged_repo.workdir) do
-      #   dir = File.dirname(path)
-      #   FileUtils.mkdir_p dir
-      #   File.open(path, "w") { |f| f.write data }
-      # end
-      # @rugged_repo.index.add(path)
-      # #p "i:", @rugged_repo.index #.each{ |e| e }
-      # # Dir.mktmpdir("alternative") do |dir|
-      # ##first time
-      # @rugged_repo.index.write
-
-      #p "s:", File.split(path)
-      # @rugged_index.add(:path => path, :oid => oid, :mode => 0100644)
-      # @rugged_index.reload
-      # index is in-memory
-      # @rugged_index.add(path)
-
       oid = @rugged_repo.write(data, :blob)
       @rugged_repo.index.add(:path => path, :oid => oid, :mode => 0100644)
       @rugged_repo.index.write
-
-      # p "d2:",@rugged_repo.index.to_s
-
-      # index_tree_sha = @rugged_index.write_tree(@rugged_repo)
-      # index_tree = @rugged_repo.lookup(index_tree_sha)
-      # # Grit::Tree for '/' method
-      # @current_tree = Tree.new(index_tree, @rugged_repo)
-
-      a = add_grit(path, data)
-      #p "a", a
-      a
+      add_grit(path, data)
     end
     def commit(message, parents = nil, actor = nil, last_tree = nil, head = 'master')
-      # p "pare:", parents.map{ |p| @rugged_repo.lookup(p.id) }
-      # p("target:", [ @rugged_repo.head.target ].compact) unless @rugged_repo.empty?
-      # p "last_tree:", last_tree, head
-      # index = wiki.repo.index
-      # index.read_tree 'master'
-      # index.add('Foobar/Elrond.md', 'Baz')
-      # index.commit 'Add Foobar/Elrond.', [wiki.repo.commits.last], Grit::Actor.new('Tom Preston-Werner', 'tom@github.com')
       options = {}
-      # if @current_tree
-      #   # p @rugged_repo.references["refs/heads/master"]
-      #   # p @rugged_repo.branches["master"]
-      #   head_sha = @rugged_repo.references["refs/heads/" + head].resolve.target_id
-      #   tree = @rugged_repo.lookup(head_sha).tree
-      #   @rugged_index.read_tree(tree)
-      #   options[:tree] = tree.id
-      # else
-      # @rugged_repo.checkout(@rugged_repo.branches[head]) if @rugged_repo.branches[head]
-      # end
-      # options[:tree] = @rugged_index.write_tree(@rugged_repo)
       options[:tree] = @rugged_repo.index.write_tree(@rugged_repo)
-      # @current_tree # @current_tree.id
-      # p "pare2:", parents.map{ |p| @rugged_repo.lookup(p.id) }
-      # p("target2:", [ @rugged_repo.head.target ].compact) unless @rugged_repo.empty?
-
-      #p options[:tree]
-      #
-        # @rugged_index.write_tree(@rugged_repo) # @current_tree.rugged_tree.oid
-      # p message, parents , actor, last_tree
       options[:author] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
       options[:committer] = { :email => actor.email , :name => actor.name, :time => Time.now } if actor
       options[:message] = message || ''
-      #options[:message] = "hoge"
-      # todo
-      #p "h:", head, parents.map{ |p| p.id }, #@rugged_repo.head.target
-      # options[:parents] = @rugged_repo.empty? ? [] :
-      #   [ @rugged_repo.head.target ].compact
       options[:parents] = @rugged_repo.empty? ? [] : [ @rugged_repo.head.target ].compact
-      #parents.map{ |p| p.id }
       options[:update_ref] = "refs/heads/" + head #head #'HEAD'
-      #p options
-      sha = Rugged::Commit.create(@rugged_repo, options)
-      #p "comm_sha", sha
-      # commit = @rugged_repo.lookup(sha)
-      # commit.tree.walk(:postorder) { |root, entry| p "#{root}#{entry[:name]} [#{entry[:oid]}]" }
-      sha
+      Rugged::Commit.create(@rugged_repo, options)
     end
     def delete(path)
       # @rugged_index.remove(path)
@@ -235,7 +146,8 @@ module Grit
     end
   end
   class Commit
-    attr_reader :rugged_commit,:type
+    attr_reader :rugged_commit,:type, :id
+    # commit or branch
     def to_s
       id
     end
@@ -248,12 +160,18 @@ module Grit
     def initialize(rugged_commit)
       @rugged_commit = rugged_commit
       @type = :commit
+      #rugged_commit.type
+      # if rugged_commit.type ==
+      #   @id = @rugged_commit.oid
+      # else
+      #   @id = @rugged_commit.target_id
+      # end
     end
     def id
-      @rugged_commit.id
+      @rugged_commit.oid
     end
     def sha
-      @rugged_commit.sha
+      @rugged_commit.oid
     end
     def message
       @rugged_commit.message
@@ -303,12 +221,10 @@ module Grit
         Dir.glob("**/"+pattern)
       }.join("\n")
     end
-    def log(options,commit,c,path)
-      #p "op", options, commit, path
-      #options = {:max_count => 500}.merge(options)
+    def log(options,commit_sha,c,path)
       walker = Rugged::Walker.new(@rugged_repo)
       walker.sorting(Rugged::SORT_DATE)
-      walker.push(commit)
+      walker.push(commit_sha)
       commits = walker.map do |commit|
         #commit.parents.size == 1 &&
         diff_options = {paths: [path]} if path
@@ -319,7 +235,8 @@ module Grit
             delta = diff.deltas.first
             path = delta.old_file[:path] if delta && delta.renamed? && options[:follow]
           end
-          commit
+          #commit
+          Commit.new(commit)
         else
           nil
         end
@@ -362,34 +279,29 @@ module Grit
       @rugged_diff.to_s
     end
   end
+  class Ref
+    def initialize(rugged_ref)
+      @rugged_ref = rugged_ref
+    end
+    def commit
+      Commit.new(@rugged_ref.target)
+    end
+  end
   class Repo
     attr_reader :rugged_repo, :git, :working_dir
     def update_ref(head, commit_sha)
-    # when Rugged::Object
-    #   target = sha_or_ref.oid
-    # else
-    #   target = rev_parse_oid(sha_or_ref)
-    # end
-      #b = @rugged_repo.references.create("refs/heads/" + head,commit_sha)
-      #p "t", b.target.oid, commit_sha
-      #p "cl:", Rugged::Commit.lookup(@rugged_repo, commit_sha)
-      ref = @rugged_repo.create_branch(head, Rugged::Commit.lookup(@rugged_repo, commit_sha))
-      #p "ref:", ref.type, ref.target, ref.name, ref.branch?, ref.canonical_name, ref.head?
-      @rugged_repo.branches[head]
-      ref
-      # p "t", b.target.oid, commit_sha
+      @rugged_repo.
+        create_branch(head,Rugged::Commit.lookup(@rugged_repo, commit_sha))
     end
     def log(commit = 'master', path = nil, options = {})
       # https://github.com/gitlabhq/grit/blob/master/lib/grit/repo.rb#L555
       self.git.log({:pretty => "raw"}.merge(options),commit,nil,path)
     end
     def head
-      @rugged_repo.head
+      Ref.new(@rugged_repo.head)
     end
     def index
-      #todo
       Index.new(self)
-      #nil
     end
     def config
       @rugged_repo.config
@@ -400,9 +312,6 @@ module Grit
     def diff(a, b, *paths)
       @rugged_repo.diff(a,b).find_similar!(:all => true).
         patches.map{|patches| Diff.new(patches)}.reverse
-      #.map{ |patch| patch.to_s }
-      #deltas
-      #,paths)
     end
     def bare
       @rugged_repo.bare?
@@ -416,10 +325,6 @@ module Grit
       self.new(path, repo_options)
     end
     def self.init(path, git_options = {}, repo_options = {})
-      #git_options = {:base => false}.merge(git_options)
-      #p git_options
-      # todo bare?
-      #::Rugged::Repository.init_at('.', :bare)
       ::Rugged::Repository.init_at(path, false)
       self.new(path, repo_options)
     end
@@ -427,8 +332,12 @@ module Grit
       # return Rugged ref or Grit commit from reference
       begin
         #::Rugged::Branch.lookup(@rugged_repo, ref) ||
-        @rugged_repo.branches[ref] ||
-                 Commit.new(@rugged_repo.lookup(ref))
+        if @rugged_repo.branches[ref]
+          @rugged_repo.branches[ref]
+          #Commit.new(@rugged_repo.branches[ref])
+        else
+          Commit.new(@rugged_repo.lookup(ref))
+        end
         # p "comm",commit
         # commit
       rescue Rugged::InvalidError, Rugged::ReferenceError
@@ -437,64 +346,26 @@ module Grit
     end
     def commits(start = 'master', max_count = 10, skip = 0)
       walker = Rugged::Walker.new(@rugged_repo)
-      #walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE) # optional
       walker.push(start)
-      #walker.push(@repo.ref)
       walker.map{ |c| Commit.new(c) }#puts c.inspect
     end
-    # http://rubydoc.info/gems/gitlab-grit/2.6.4/frames
-    # def lstree_rec(tree, path, list)
-    #   tree.each do |e|
-    #     if e[:type] == :blob
-    #       #     items << BlobEntry.new(entry[:sha], entry[:path], entry[:size], entry[:mode].to_i(8))          #   end
-    #       # end
-    #       list << {:type => "blob", :sha => e[:oid], :path => path + e[:name],
-    #                :mode => e[:filemode].to_s(8)}#to_s for compati
-    #     elsif e[:type] == :tree
-    #       lstree_rec(@rugged_repo.lookup(e[:oid]), e[:name] + '/', list)
-    #     end
-    #   end
-    # end
     def lstree(treeish = 'master', options = {})
-      #walk is ok?
-      #obj = @rugged_repo.lookup(treeish)
       obj = commit(treeish)
       list = []
       obj.tree.walk_blobs(:postorder) { |root, e|
         list << {:type => "blob", :sha => e[:oid], :path => "#{root}#{e[:name]}" , :mode => e[:filemode].to_s(8)}
       }
-      # lstree_rec(obj.tree, '', list)
       list
     end
   end
 end
 
 module Rugged
-  class Object
-    def id
-      self.oid
-    end
-    def sha
-      self.oid
-    end
-  end
-  class Reference
-    def commit
-      self.target
-    end
-    # def sha
-    #   self.target
-    # end
-  end
-  class Repository
-  end
   class Branch
     def id
-      #self.tip.oid
       self.target_id
     end
     def sha
-      #self.tip.oid
       self.target_id
     end
     def tree
@@ -519,6 +390,9 @@ module Rugged
     end
   end
   class Tree
+    def id
+      self.oid
+    end
     include Enumerable
     # http://ref.xaio.jp/ruby/classes/module/alias_method
     alias_method :orig_each_blob, :each_blob
