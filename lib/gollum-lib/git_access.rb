@@ -17,9 +17,8 @@ module Grit
   end
   class Tree
     attr_reader :rugged_tree
-    def initialize(rugged_tree, rugged_repo)
+    def initialize(rugged_tree)
       @rugged_tree = rugged_tree
-      @rugged_repo = rugged_repo
     end
     def id
       @rugged_tree.oid
@@ -33,11 +32,14 @@ module Grit
       else
         begin
           obj = @rugged_tree.path(file)
-          Tree.new(@rugged_repo.lookup(obj[:oid]), @rugged_repo) if
+          Tree.new(@rugged_tree.owner.lookup(obj[:oid])) if
             obj[:type] == :tree
         rescue Rugged::TreeError
         end
       end
+    end
+    def walk_blobs(mode=:postorder)
+      @rugged_tree.walk_blobs(mode){|root, b| yield root, b }
     end
     def blobs
       # @rugged_tree.blobs.each
@@ -67,8 +69,10 @@ module Grit
       tree = @repo.commit(treeish)
       tree = @rugged_repo.lookup(tree.target_id) if tree.type == :direct
       tree = tree.tree if tree.type == :commit
+      tree = tree.rugged_tree if tree.class == Grit::Tree
+      #p tree
       @rugged_repo.index.read_tree(tree)
-      @current_tree = Tree.new(tree, @rugged_repo)
+      @current_tree = Tree.new(tree)#, @rugged_repo)
     end
     def mkdir_p(path)
       #https://gist.github.com/uniphil/9570964
@@ -105,7 +109,7 @@ module Grit
       index_tree_sha = index.write_tree
       index_tree = @rugged_repo.lookup(index_tree_sha)
       # Grit::Tree for '/' method
-      @current_tree = Tree.new(index_tree, @rugged_repo)
+      @current_tree = Tree.new(index_tree)#, @rugged_repo)
       # @tree[path] = false
       add_grit(path, false)
       # p "tree", @tree, @current_tree.rugged_tree
@@ -130,19 +134,27 @@ module Grit
     end
   end
   class Blob
-    attr_reader :rugged_blob, :name, :oid, :filemode, :type
-    def initialize(blob)
+    attr_reader :rugged_blob, :name, :oid, :filemode, :type, :mode
+    def initialize(blob,rblob=nil)
+      @rugged_blob = rblob
       @name = blob[:name]
       @oid = blob[:oid]
-      @filemode = blob[:filemode]
+      # @filemode = blob[:filemode]
+      @mode = blob[:mode]
       @type = blob[:type]
     end
+    def data
+      @rugged_blob.read_raw.data
+    end
     def self.create(repo, atts)
-      #{:id=>"4571349a92aa180e230345e4e44c9be7d9d4f96c", :name=>"Elrond.md", :s
+      #{:id=>"4571349a92aa180e230345e4e44c9be7d9d4f96c", :name=>"Elrond.md", :size=>nil, :mode=>33188}
+      # p "at", atts
       obj=repo.rugged_repo.lookup(atts[:id])
-      obj.name = atts[:name]
-      obj.mode = atts[:mode]
-      obj
+      self.new({:name => atts[:name], :mode => atts[:mode]}, obj)
+                #:oid => atts[:id]},)#:oid => atts[:id]
+      # obj.name = atts[:name]
+      # obj.mode = atts[:mode]
+      #obj
     end
   end
   class Commit
@@ -160,7 +172,7 @@ module Grit
     def initialize(rugged_commit)
       @rugged_commit = rugged_commit
       @type = :commit
-      #rugged_commit.type
+      #p "type:", rugged_commit.type
       # if rugged_commit.type ==
       #   @id = @rugged_commit.oid
       # else
@@ -177,7 +189,7 @@ module Grit
       @rugged_commit.message
     end
     def tree
-      return @rugged_commit.tree if @rugged_commit.type == :commit
+      return Tree.new(@rugged_commit.tree) if @rugged_commit.type == :commit
       return @rugged_commit if @rugged_commit.type == :tree
     end
     # Grit::GitRuby::Commit
@@ -187,6 +199,7 @@ module Grit
     end
     def parents
       @rugged_commit.parents
+      #@rugged_commit.parents.map{ |parent| Commit.new(parent)}
     end
   end
   class Actor
@@ -333,7 +346,7 @@ module Grit
       begin
         #::Rugged::Branch.lookup(@rugged_repo, ref) ||
         if @rugged_repo.branches[ref]
-          @rugged_repo.branches[ref]
+          Commit.new(@rugged_repo.lookup(@rugged_repo.branches[ref].target_id))
           #Commit.new(@rugged_repo.branches[ref])
         else
           Commit.new(@rugged_repo.lookup(ref))
@@ -361,38 +374,7 @@ module Grit
 end
 
 module Rugged
-  class Branch
-    def id
-      self.target_id
-    end
-    def sha
-      self.target_id
-    end
-    def tree
-      self.target.tree
-    end
-  end
-  class Blob
-    attr_accessor :name, :mode
-    def data
-      self.read_raw.data
-    end
-    #copy from grit_ext.rb
-    def is_symlink
-      self.mode == 0120000
-    end
-    def symlink_target(base_path = nil)
-      target = self.data
-      new_path = File.expand_path(File.join('..', target), base_path)
-      if File.file? new_path
-        return new_path
-      end
-    end
-  end
   class Tree
-    def id
-      self.oid
-    end
     include Enumerable
     # http://ref.xaio.jp/ruby/classes/module/alias_method
     alias_method :orig_each_blob, :each_blob
